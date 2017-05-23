@@ -1,0 +1,35 @@
+# VS Code IDE #
+###############
+.vscode/**
+
+# Compiled source #
+###################
+Programs/Bytecode/*
+Programs/Schedules/*
+Programs/Public-Input/*
+*.pyc
+*.bc
+*.sch
+
+# dependencies #
+################
+node_modules
+
+# Logs and databases #
+######################
+*.log
+*.sql
+*.sqlite
+*.data
+
+# OS generated files #
+######################
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+**/*.x.dSYM/**

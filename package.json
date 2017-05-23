@@ -1,0 +1,30 @@
+{
+  "name": "spdz-scratchpad",
+  "version": "0.1.0",
+  "description": "Place to experiment with MPC programs, outside of SPDZ main code base.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/risingnote/spdz-scratchpad.git"
+  },
+  "keywords": [
+    "spdz",
+    "mpc"
+  ],
+  "author": "Jonathan Evans",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/risingnote/spdz-scratchpad/issues"
+  },
+  "homepage": "https://github.com/risingnote/spdz-scratchpad#readme",
+  "dependencies": {
+    "isomorphic-fetch": "^2.2.1",
+    "moment": "^2.18.1",
+    "spdz-gui-lib": "git+ssh://git@github.com/bristolcrypto/spdz-gui-lib.git#v0.1.2",
+    "winston": "^2.3.1"
+  }
+}
