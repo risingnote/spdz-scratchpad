@@ -14,6 +14,7 @@ Programs/Public-Input/*
 # dependencies #
 ################
 node_modules
+Player-Data
 
 # Logs and databases #
 ######################

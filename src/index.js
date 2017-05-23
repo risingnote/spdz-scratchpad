@@ -37,6 +37,16 @@ spdzGuiLib.connectToProxies(spdzProxyList.map(spdzProxy => spdzProxy.url),
         new Error('Unable to connect to all Spdz Proxy Servers ' + JSON.stringify(values)))
     }
   })
+  .then(() => {
+    const input = Array.from({length: 10}, (v, i) => i+1).concat(0)
+    logger.debug(input)
+    return spdzGuiLib.sendInputsWithShares(input, true, spdzProxyList, proxyConfig.spdzApiRoot, dhPublicKey, 300)     
+  })
+  .then(() => {
+    const input = Array.from({length: 10}, (v, i) => i+10).concat(1)
+    logger.debug(input)
+    return spdzGuiLib.sendInputsWithShares(input, true, spdzProxyList, proxyConfig.spdzApiRoot, dhPublicKey, 300)     
+  })
   .catch((err) => {
     logger.warn("Unable to initialise SPDZ engines, exiting.", err)
   })

@@ -22,11 +22,13 @@ def main():
     client_socket_id = regint()
     print_ln('Waiting for voter data....')
     acceptclientconnection(client_socket_id, PORTNUM)
+    regint.read_client_public_key(client_socket_id)
+
     accumulator = Array(2, sint)
 
     @do_while
     def read_input_from_client_loop():
-
+        print_ln('Waiting for client input.')
         input_list = sint.receive_from_client(MAX_NUM_INPUTS, client_socket_id)
 
         for i in range(MAX_NUM_INPUTS - 1):
@@ -34,7 +36,7 @@ def main():
             accumulator[0] = if_else(is_valid, accumulator[0] + input_list[i], accumulator[0])
             accumulator[1] = if_else(is_valid, i + 1, accumulator[1])
 
-        return input_list[MAX_NUM_INPUTS-1].reveal == 0
+        return input_list[MAX_NUM_INPUTS-1].reveal() == 0
 
     print_ln('Total %s, count %s, avg %s.', 
              accumulator[0].reveal(), accumulator[1].reveal(),

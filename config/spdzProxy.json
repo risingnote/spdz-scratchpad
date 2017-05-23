@@ -3,11 +3,11 @@
   "spdzProxyList" : [
         {
           "url": "http://localhost:3010",
-          "publicKey": "5d9767f5f84e1fb5be5d605ab27b7a0b767ace029b942c9f3bac7d3559a02e4c"
+          "publicKey": "a0cbb39edee111854976b3c9c4a9ff1f0bba51749076a81f62a0fbbc56a46f05"
         },
         {
           "url": "http://localhost:3011",
-          "publicKey": "ccaec3194a12012b5d39dffc24fb24d2d6704d8e06ad36f963f85c0953744854"
+          "publicKey": "81aae0a8cc0ac5a6b59c7026df19d4db9d86df75e7948555706aa9299ca67770"
         }
       ]
 }
