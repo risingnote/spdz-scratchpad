@@ -2,10 +2,10 @@
 Receive inputs over more than 1 message exchange.
 """
 
-from Compiler.types import sint, regint, Array
+from Compiler.types import sint, sfloat, regint, Array
 from Compiler.instructions import listen, acceptclientconnection
 from Compiler.library import do_while, print_ln
-from Compiler.util import if_else
+from Compiler.util import if_else 
 
 # program is instance of Program class injected by compilerLib.run.
 program.set_bit_length(32)
@@ -34,12 +34,15 @@ def main():
         for i in range(MAX_NUM_INPUTS - 1):
             is_valid = input_list[i] != 0
             accumulator[0] = if_else(is_valid, accumulator[0] + input_list[i], accumulator[0])
-            accumulator[1] = if_else(is_valid, i + 1, accumulator[1])
+            accumulator[1] = if_else(is_valid, accumulator[1] + 1, accumulator[1])
 
         return input_list[MAX_NUM_INPUTS-1].reveal() == 0
 
+    sum_float = sfix(); sum_float.load_int(accumulator[0])
+    cnt_float = sfix(); cnt_float.load_int(accumulator[1])
+
     print_ln('Total %s, count %s, avg %s.', 
              accumulator[0].reveal(), accumulator[1].reveal(),
-             (accumulator[0]/accumulator[1]).reveal())
+             (sum_float/cnt_float).reveal())
 
 main()
