@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/risingnote/spdz-scratchpad#readme",
   "dependencies": {
+    "baconjs": "^0.7.93",
     "express": "^4.15.3",
     "isomorphic-fetch": "^2.2.1",
     "moment": "^2.18.1",

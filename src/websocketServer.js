@@ -7,6 +7,7 @@ const express = require('express')
 const http = require('http')
 const Io = require('socket.io')
 const logger = require('./logging')
+const port = process.env.PORT || '8080'
 
 const app = express()
 
@@ -17,6 +18,8 @@ const webServer = http.createServer(app)
 const io = new Io(webServer, { path: '/test/socket.io' })
 const ns = io.of('/test')
 
+const clientList = {}
+
 ns.on('connection', socket => {
   logger.info(`Socket ${socket.id} connected.`)
 
@@ -24,10 +27,16 @@ ns.on('connection', socket => {
     logger.info(
       `Got public key message with data ${data} from socket ${socket.id}.`
     )
-
-    setTimeout(() => {
-      socket.emit('spdz_message', '1234')
-    }, 2000)
+    if (clientList.hasOwnProperty(data)) {
+      //reconnection
+      logger.info('Client has been here before.')
+    } else {
+      //new connection
+      clientList[data] = data
+      setTimeout(() => {
+        socket.emit('spdz_message', '1234')
+      }, 2000)
+    }
   })
 
   socket.on('disconnect', () => {
@@ -35,6 +44,6 @@ ns.on('connection', socket => {
   })
 })
 
-webServer.listen(8080, () => {
-  logger.info('Serving web socket server on port 8080.')
+webServer.listen(port, () => {
+  logger.info(`Serving web socket server on port ${port}.`)
 })

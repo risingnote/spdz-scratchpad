@@ -1,30 +1,78 @@
 const Io = require('socket.Io-client')
-const logger = require('./logging')
+const Bacon = require('baconjs').Bacon
 
-const socketManager = Io.connect('http://localhost:8080/test', {
-  path: '/test/socket.io',
-  reconnection: true,
-  reconnectionAttempts: 30,
-  timeout: 5000,
-  autConnect: false
-})
+const publishBus = Bacon.Bus()
 
-const socket = socketManager.connect()
+const connectToProxy = (userOptions, ...urlList) => {
+  const connectOptions = Object.assign(
+    {},
+    {
+      path: '/test/socket.io',
+      reconnection: true,
+      reconnectionAttempts: 12,
+      reconnectionDelay: 5000,
+      timeout: 2000,
+      autoConnect: true
+    },
+    userOptions
+  )
 
-socket.on('connect', () => {
-  logger.info('connected with socket ', socket.id)
+  let connectionsStreamList = []
+  let messagesStreamList = []
 
-  socket.emit('public_key', '01020304050607')
-})
+  for (const url of urlList) {
+    const [connectionStream, messageStream] = connectSetup(connectOptions, url)
+    connectionsStreamList.push(connectionStream)
+    messagesStreamList.push(messageStream)
+  }
 
-socket.on('connect_error', () => {
-  logger.info('Got connection error')
-})
+  const combinedConnectionStream = Bacon.zipAsArray(connectionsStreamList)
+  const combinedMessageStream = Bacon.zipAsArray(messagesStreamList)
 
-socket.on('connect_timeout', () => {
-  logger.info('Got connection timeout')
-})
+  return [combinedConnectionStream, combinedMessageStream]
+}
 
-socket.on('spdz_message', data => {
-  logger.info(`Got spdz message with data ${data}.`)
-})
+const connectSetup = (connectOptions, url) => {
+  const socket = Io.connect(url, connectOptions)
+
+  //***************************************
+  // Wrap socket events in Bacon (reactive)
+  //***************************************
+  const connectionStream = Bacon.fromBinder(sink => {
+    socket.on('connect', () => {
+      sink(1)
+    })
+    socket.on('connect_error', () => {
+      sink(new Bacon.Error(`Connection error for ${url}.`))
+    })
+    socket.on('connect_timeout', () => {
+      sink(new Bacon.Error(`Connection timeout for ${url}.`))
+    })
+
+    //Used for unsubscribe tidy up
+    return () => {}
+  })
+
+  const messageStream = Bacon.fromBinder(sink => {
+    socket.on('spdz_message', data => {
+      sink(data)
+    })
+
+    //Used for unsubscribe tidy up
+    return () => {}
+  })
+
+  publishBus.onValue(value => {
+    socket.emit('public_key', value)
+  })
+
+  return [connectionStream, messageStream, publishBus]
+}
+
+// Used if autoConnect is false, Returns immediately
+//const socket = socketManager.connect()
+
+module.exports = {
+  connectToSPDZProxy: connectToProxy,
+  publishStream: publishBus
+}
