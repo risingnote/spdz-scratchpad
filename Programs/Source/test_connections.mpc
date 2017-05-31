@@ -1,0 +1,32 @@
+"""
+Receive inputs over more than 1 message exchange.
+"""
+
+from Compiler.types import sint, sfloat, regint, Array
+from Compiler.instructions import listen, acceptclientconnection
+from Compiler.library import do_while, print_ln
+from Compiler.util import if_else 
+
+# program is instance of Program class injected by compilerLib.run.
+program.set_bit_length(32)
+
+PORTNUM = 14000
+
+def main():
+
+    listen(PORTNUM)
+    print_ln('Listening for client connections on base port %s', PORTNUM)
+
+    @do_while
+    def read_input_from_client_loop():
+        client_socket_id = regint()
+        acceptclientconnection(client_socket_id, PORTNUM)
+        regint.read_client_public_key(client_socket_id)
+
+        input_list = sint.receive_from_client(1, client_socket_id)
+        
+        print_ln('Received input %s', input_list[0].reveal())
+
+        return 1
+
+main()
