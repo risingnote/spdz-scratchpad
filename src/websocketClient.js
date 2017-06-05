@@ -1,10 +1,24 @@
 const Io = require('socket.Io-client')
 const Bacon = require('baconjs').Bacon
+const assert = require('assert')
+const spdzGuiLib = require('spdz-gui-lib')
 const logger = require('./logging')
 
 const publishBus = Bacon.Bus()
 
-const connectToProxy = (userOptions, ...urlList) => {
+const extractMessageType = (binaryData => {
+  assert(binaryData instanceof Uint8Array, `Message from SPDZ should be a Uint8Array type, got a ${typeof binaryData}.`)
+  assert(binaryData.length >= 4, `Message from SPDZ must be at least 4 bytes, given${binaryData.length}.`)
+
+  const messageTypeBytes = binaryData.slice(0, 4)
+  const remainingBytes = binaryData.slice(4)
+
+  const messageType = spdzGuiLib.binaryToIntArray([messageTypeBytes])[0]
+
+  return [messageType, remainingBytes]
+})
+
+const connectToProxy = (userOptions, ...proxyList) => {
   const connectOptions = Object.assign(
     {},
     {
@@ -19,26 +33,37 @@ const connectToProxy = (userOptions, ...urlList) => {
   )
 
   let connectionsStreamList = []
-  let messagesStreamList = []
+  let responsesStreamList = []
+  let sharesStreamList = []
+  let outputsStreamList = []
 
-  for (const url of urlList) {
-    const [connectionStream, messageStream] = connectSetup(connectOptions, url)
+  for (const proxy of proxyList) {
+    const [connectionStream, responsesStream, sharesStream, outputsStream] = connectSetup(connectOptions, proxy.url, proxy.encryptionKey)
     connectionsStreamList.push(connectionStream)
-    messagesStreamList.push(messageStream)
+    responsesStreamList.push(responsesStream)
+    sharesStreamList.push(sharesStream)
+    outputsStreamList.push(outputsStream)
   }
 
   const combinedConnectionStream = Bacon.zipAsArray(connectionsStreamList)
-  const combinedMessageStream = Bacon.zipAsArray(messagesStreamList)
+  const combinedResponsesStream = Bacon.zipAsArray(responsesStreamList)
+  const combinedSharesStream = Bacon.zipAsArray(sharesStreamList)
+  const combinedOutputsStream = Bacon.zipAsArray(outputsStreamList)
 
-  return [combinedConnectionStream, combinedMessageStream]
+  //Validation on shares stream
+  combinedSharesStream.onValue(value => {
+    //TODO
+    spdzGuiLib.sharesFromTriples()
+  })
+
+  return [combinedConnectionStream, combinedResponsesStream, combinedSharesStream, combinedOutputsStream]
 }
 
-const connectSetup = (connectOptions, url) => {
+const connectSetup = (connectOptions, url, encryptionKey) => {
   const socket = Io.connect(url, connectOptions)
 
   //***************************************
   // Wrap socket events in Bacon (reactive)
-  // TODO Look at using Bacon.fromEvent instead of custom stream.
   //***************************************
   const connectionStream = Bacon.fromBinder(sink => {
     socket.on('connect', () => {
@@ -57,36 +82,54 @@ const connectSetup = (connectOptions, url) => {
     return () => {}
   })
 
-  const messageStream = Bacon.fromBinder(sink => {
-    //TODO decrypt (all encrypted), split input vs results messages into 2 streams.
-    socket.on('spdz_message', data => {
-      sink(data)
-    })
-
+  // Gather response messages into single stream 
+  // status 0 - good, 1 - bad
+  const responsesStream = Bacon.fromBinder(sink => {
     socket.on('connectToSpdz_result', (status, err) => {
-      sink({ status: status, err: err })
+      sink({ type: 'connectToSpdz_result', status: status, url: url, err: err })
     })
 
     //Used for unsubscribe tidy up
     return () => {}
   })
 
+  //Decrypt, then work out type from first 4 bytes, rest is data
+  // Errors get propagated to be caught in all follow on stream.onError handlers
+  const spdzMessageStream = Bacon.fromEvent(socket, 'spdz_message', (value => {
+    try {
+      const clearValue = spdzGuiLib.decrypt(encryptionKey, value)
+
+      const [messageType, remainingData] = extractMessageType(clearValue)
+
+      if (messageType !== 1 && messageType !== 2) {
+        throw new Error(`Unknown message type ${messageType}.`)
+      }
+
+      return { type: messageType, data: remainingData }
+    } catch (err) {
+      return new Bacon.Error(err.message + ` Proxy ${url}.`)
+    }
+  }))
+
+  // shares are always arrays of 128bit bigintegers 
+  const sharesStream = spdzMessageStream.filter(value => value.type === 1).map(value => value.data)
+
+  // outputs are always arrays of 32 bit integers
+  const outputsStream = spdzMessageStream.filter(value => value.type === 2).map(value => value.data)
+  
   publishBus.onValue(value => {
     if (value.eventType === 'connectToSpdz') {
       socket.emit(
         value.eventType,
         value.publicKey,
-        value.reuseConnection,
-        (status, err) => {
-          logger.info(`connectToSpdz ${url} status ${status} err ${err}`)
-        }
+        value.reuseConnection
       )
     } else {
       logger.warn(`Don't know what to do with event type ${value.eventType}`)
     }
   })
 
-  return [connectionStream, messageStream, publishBus]
+  return [connectionStream, responsesStream, sharesStream, outputsStream]
 }
 
 // Used if autoConnect is false, Returns immediately

@@ -1,14 +1,10 @@
 """
-Receive inputs over more than 1 message exchange.
+Test receiving and sending external client inputs with updated SPDZ instructions / SPDZ Proxy.
 """
 
-from Compiler.types import sint, sfloat, regint, Array
+from Compiler.types import sint, regint, ClientMessageType
 from Compiler.instructions import listen, acceptclientconnection
 from Compiler.library import do_while, print_ln
-from Compiler.util import if_else 
-
-# program is instance of Program class injected by compilerLib.run.
-program.set_bit_length(32)
 
 PORTNUM = 14000
 
@@ -23,8 +19,8 @@ def main():
         acceptclientconnection(client_socket_id, PORTNUM)
         regint.read_client_public_key(client_socket_id)
 
-        input_list = sint.receive_from_client(1, client_socket_id)
-        
+        input_list = sint.receive_from_client(1, client_socket_id, ClientMessageType.InputShare)
+
         print_ln('Received input %s', input_list[0].reveal())
 
         return 1
