@@ -6,16 +6,30 @@ const logger = require('./logging')
 
 const publishBus = Bacon.Bus()
 
-const extractMessageType = (binaryData => {
+// Matches SPDZ Processer/instruction.h
+const REG_TYPE = {
+  MODP: 0,
+  GF2N: 1,
+  INT: 2,
+  MAX_REG_TYPE: 3,
+  NONE: 4
+}
+
+const MESSAGE_TYPE = {
+  NOTYPE: 0,
+  INPUT_SHARE: 1,
+  OUTPUT_RESULT: 2
+}
+
+const extractMessageStructure = (binaryData => {
   assert(binaryData instanceof Uint8Array, `Message from SPDZ should be a Uint8Array type, got a ${typeof binaryData}.`)
-  assert(binaryData.length >= 4, `Message from SPDZ must be at least 4 bytes, given${binaryData.length}.`)
+  assert(binaryData.length >= 8, `Message from SPDZ must be at least 8 bytes, given${binaryData.length}.`)
 
-  const messageTypeBytes = binaryData.slice(0, 4)
-  const remainingBytes = binaryData.slice(4)
+  const messageType = spdzGuiLib.binaryToIntArray([binaryData.slice(0, 4)])[0]
+  const regType = spdzGuiLib.binaryToIntArray([binaryData.slice(4, 8)])[0]
+  const remainingBytes = binaryData.slice(8)
 
-  const messageType = spdzGuiLib.binaryToIntArray([messageTypeBytes])[0]
-
-  return [messageType, remainingBytes]
+  return [messageType, regType, remainingBytes]
 })
 
 const connectToProxy = (userOptions, ...proxyList) => {
@@ -50,13 +64,29 @@ const connectToProxy = (userOptions, ...proxyList) => {
   const combinedSharesStream = Bacon.zipAsArray(sharesStreamList)
   const combinedOutputsStream = Bacon.zipAsArray(outputsStreamList)
 
-  //Validation on shares stream
-  combinedSharesStream.onValue(value => {
-    //TODO
-    spdzGuiLib.sharesFromTriples()
+  //Validation on shares stream (map and convert before publish)
+  const extractedSharesStream = combinedSharesStream.map(byteBufferList => {
+    try {
+      return spdzGuiLib.sharesFromTriples(byteBufferList)
+    } catch (err) {
+      return new Bacon.Error(err.message)
+    }
   })
 
-  return [combinedConnectionStream, combinedResponsesStream, combinedSharesStream, combinedOutputsStream]
+  //Validation on outputs stream and convert to int array from byte array
+  // Uses regType MODP (16) or INT (4) to determine parsing.
+  const extractedOutputStream = combinedOutputsStream.map(byteBufferList => {
+    try {
+      const gfpval = spdzGuiLib.fromSpdzBinary(byteBufferList[0], true)
+      return gfpval.fromMontgomery()
+      // return spdzGuiLib.binaryToIntArray(byteBufferList)
+    } catch (err) {
+      return new Bacon.Error(err.message)
+    }
+  })
+  
+
+  return [combinedConnectionStream, combinedResponsesStream, extractedSharesStream, extractedOutputStream]
 }
 
 const connectSetup = (connectOptions, url, encryptionKey) => {
@@ -89,33 +119,51 @@ const connectSetup = (connectOptions, url, encryptionKey) => {
       sink({ type: 'connectToSpdz_result', status: status, url: url, err: err })
     })
 
+    socket.on('sendData_result', (status, err) => {
+      sink({ type: 'sendData_result', status: status, url: url, err: err })
+    })
+
     //Used for unsubscribe tidy up
     return () => {}
   })
 
-  //Decrypt, then work out type from first 4 bytes, rest is data
+  //Decrypt, then work out message type and data type, rest is data
   // Errors get propagated to be caught in all follow on stream.onError handlers
   const spdzMessageStream = Bacon.fromEvent(socket, 'spdz_message', (value => {
     try {
       const clearValue = spdzGuiLib.decrypt(encryptionKey, value)
 
-      const [messageType, remainingData] = extractMessageType(clearValue)
+      const [messageType, regType, remainingData] = extractMessageStructure(clearValue)
 
-      if (messageType !== 1 && messageType !== 2) {
+      if (messageType !== MESSAGE_TYPE.INPUT_SHARE && 
+          messageType !== MESSAGE_TYPE.OUTPUT_RESULT) {
         throw new Error(`Unknown message type ${messageType}.`)
       }
 
-      return { type: messageType, data: remainingData }
+      if (regType !== REG_TYPE.MODP && 
+          regType !== REG_TYPE.INT) {
+        throw new Error(`Unknown data type ${regType}.`)
+      }
+
+      return { messageType: messageType, regType: regType, data: remainingData }
     } catch (err) {
       return new Bacon.Error(err.message + ` Proxy ${url}.`)
     }
   }))
 
-  // shares are always arrays of 128bit bigintegers 
-  const sharesStream = spdzMessageStream.filter(value => value.type === 1).map(value => value.data)
+  // Shares doesn't need dataType, always MODP and so 16 byte integers.
+  const sharesStream = spdzMessageStream
+    .filter(value => value.messageType === MESSAGE_TYPE.INPUT_SHARE)
+    .map(value => {
+      return value.data 
+    })
 
-  // outputs are always arrays of 32 bit integers
-  const outputsStream = spdzMessageStream.filter(value => value.type === 2).map(value => value.data)
+  // Forward on regType, parsing depends on MODP (16) or INT (4) byte integers.
+  const outputsStream = spdzMessageStream
+    .filter(value => value.messageType === MESSAGE_TYPE.OUTPUT_RESULT)
+    .map(value => {
+      return { regType: value.regType, data: value.data }
+    })
   
   publishBus.onValue(value => {
     if (value.eventType === 'connectToSpdz') {
@@ -124,7 +172,14 @@ const connectSetup = (connectOptions, url, encryptionKey) => {
         value.publicKey,
         value.reuseConnection
       )
-    } else {
+    } else if (value.eventType === 'sendData') {
+      logger.debug('About to sendData event with value ', value.data)
+      socket.emit(
+        value.eventType,
+        value.data
+      )
+    } 
+    else {
       logger.warn(`Don't know what to do with event type ${value.eventType}`)
     }
   })

@@ -40,8 +40,8 @@ combinedResponsesStream.onValue(value => {
   logger.info('SPDZ response message.', value)
 })
 
-combinedSharesStream.onValue(value => {
-  logger.info(`Got ${value.length} SPDZ shares. Share bytes is ${value[0].length}.`)
+combinedSharesStream.onValue(shareGfpList => {
+  logger.info(`Got ${shareGfpList.length} SPDZ shares.`)
 })
 
 combinedSharesStream.onError(err => {
@@ -49,15 +49,34 @@ combinedSharesStream.onError(err => {
 })
 
 combinedOutputsStream.onValue(value => {
-  logger.info('SPDZ outputs message.', value)
+  logger.info('SPDZ outputs message.', value.toString())
 })
 
 combinedOutputsStream.onError(err => {
   logger.info('SPDZ outputs error.', err)
 })
 
-//Simulate user input
-const userInputStream = Bacon.fromArray([446])
+//Simulate user input and combine with shares to send
+const userInputStream = Bacon.later(2000, [446])
+
+const sendValueStream = userInputStream.zip(combinedSharesStream, (inputList, shareList) => {
+  if (inputList.length !== shareList.length) {
+    return new Bacon.Error(`Trying to send ${inputList.length} input(s) but ${shareList.length} share(s) suppled.`)
+  }
+  return inputList.map((input, i) => {
+    const sharedInput = shareList[i].add(spdzGuiLib.Gfp.fromString(input).toMontgomery())
+    //TODO Doesn't need to be base64 encoded
+    return spdzGuiLib.base64Encode(sharedInput)
+  })
+})
+
+sendValueStream.onValue(inputList => {
+  logger.info(`About to send ${inputList.length} input(s).`)
+  webSocketClient.publishStream.push({
+    eventType: 'sendData',
+    data: inputList
+  })
+})
 
 
 
