@@ -4,8 +4,6 @@ const assert = require('assert')
 const spdzGuiLib = require('spdz-gui-lib')
 const logger = require('./logging')
 
-const publishBus = Bacon.Bus()
-
 // Matches SPDZ Processer/instruction.h
 const REG_TYPE = {
   MODP: 0,
@@ -21,6 +19,14 @@ const MESSAGE_TYPE = {
   OUTPUT_RESULT: 2
 }
 
+const webSocketBus = Bacon.Bus()
+const userInputBus = Bacon.Bus()
+
+let combinedConnectionStream 
+let combinedResponsesStream
+let extractedSharesStream
+let extractedOutputStream
+
 const extractMessageStructure = (binaryData => {
   assert(binaryData instanceof Uint8Array, `Message from SPDZ should be a Uint8Array type, got a ${typeof binaryData}.`)
   assert(binaryData.length >= 8, `Message from SPDZ must be at least 8 bytes, given${binaryData.length}.`)
@@ -32,7 +38,35 @@ const extractMessageStructure = (binaryData => {
   return [messageType, regType, remainingBytes]
 })
 
-const connectToProxy = (userOptions, ...proxyList) => {
+
+const setupSendInputStream = () => {
+
+  const sendValueStream = userInputBus.zip(extractedSharesStream, (inputList, shareList) => {
+    if (inputList.length !== shareList.length) {
+      const warnMsg = `Trying to send ${inputList.length} input(s) but ${shareList.length} share(s) suppled.`
+      logger.warn(warnMsg)
+      return new Bacon.Error(warnMsg)
+    }
+    return inputList.map((input, i) => {
+      const sharedInput = shareList[i].add(spdzGuiLib.Gfp.fromString(input).toMontgomery())
+      //TODO Doesn't need to be base64 encoded
+      return spdzGuiLib.base64Encode(sharedInput.toHexString())
+    })
+  })
+
+  sendValueStream.onValue(inputList => {
+    logger.debug(`About to send ${inputList.length} input(s).`)
+    webSocketBus.push({
+      eventType: 'sendData',
+      data: inputList
+    })
+  })
+
+}
+
+
+const connectToSPDZProxy = (userOptions, ...proxyList) => {
+
   const connectOptions = Object.assign(
     {},
     {
@@ -59,14 +93,14 @@ const connectToProxy = (userOptions, ...proxyList) => {
     outputsStreamList.push(outputsStream)
   }
 
-  const combinedConnectionStream = Bacon.zipAsArray(connectionsStreamList)
-  const combinedResponsesStream = Bacon.zipAsArray(responsesStreamList)
+  combinedConnectionStream = Bacon.zipAsArray(connectionsStreamList)
+  combinedResponsesStream = Bacon.zipAsArray(responsesStreamList)
   const combinedSharesStream = Bacon.zipAsArray(sharesStreamList)
   const combinedOutputsStream = Bacon.zipAsArray(outputsStreamList)
 
   //Validation on shares stream (map and convert before publish)
   //Returns Array of Gfp
-  const extractedSharesStream = combinedSharesStream.flatMap(byteBufferList => {
+  extractedSharesStream = combinedSharesStream.flatMap(byteBufferList => {
     try {
       return spdzGuiLib.binaryToShare(byteBufferList)
     } catch (err) {
@@ -77,7 +111,7 @@ const connectToProxy = (userOptions, ...proxyList) => {
   //Validation on outputs stream and convert to int array from byte array
   // dataList is array of objects (regType, data)
   // Uses regType MODP (16) or INT (4) to determine parsing.
-  const extractedOutputStream = combinedOutputsStream.flatMap(dataList => {
+  extractedOutputStream = combinedOutputsStream.flatMap(dataList => {
     try {
       const regType = dataList.reduce((result, output) => result = output.regType, REG_TYPE.NONE)
       const byteBufferList = dataList.map(output => output.data)
@@ -96,8 +130,26 @@ const connectToProxy = (userOptions, ...proxyList) => {
     }
   })
   
+  //Other setup
+  setupSendInputStream()
+
+  //TODO only really need to return a stream with all the responses for a client.
   return [combinedConnectionStream, combinedResponsesStream, extractedSharesStream, extractedOutputStream]
 }
+
+
+const connectToSpdz = (publicKey, reuseConnection) => {
+  webSocketBus.push({
+    eventType: 'connectToSpdz',
+    publicKey: publicKey,
+    reuseConnection: reuseConnection
+  })
+}
+
+const sendInput = inputList => {
+  userInputBus.push(inputList)
+}
+
 
 const connectSetup = (connectOptions, url, encryptionKey) => {
   const socket = Io.connect(url, connectOptions)
@@ -175,7 +227,7 @@ const connectSetup = (connectOptions, url, encryptionKey) => {
       return { regType: value.regType, data: value.data }
     })
   
-  publishBus.onValue(value => {
+  webSocketBus.onValue(value => {
     if (value.eventType === 'connectToSpdz') {
       socket.emit(
         value.eventType,
@@ -196,10 +248,8 @@ const connectSetup = (connectOptions, url, encryptionKey) => {
   return [connectionStream, responsesStream, sharesStream, outputsStream]
 }
 
-// Used if autoConnect is false, Returns immediately
-//const socket = socketManager.connect()
-
 module.exports = {
-  connectToSPDZProxy: connectToProxy,
-  publishStream: publishBus
+  connectToSPDZProxy: connectToSPDZProxy,
+  connectToSpdz: connectToSpdz,
+  sendInput: sendInput
 }
