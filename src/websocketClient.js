@@ -65,27 +65,37 @@ const connectToProxy = (userOptions, ...proxyList) => {
   const combinedOutputsStream = Bacon.zipAsArray(outputsStreamList)
 
   //Validation on shares stream (map and convert before publish)
-  const extractedSharesStream = combinedSharesStream.map(byteBufferList => {
+  //Returns Array of Gfp
+  const extractedSharesStream = combinedSharesStream.flatMap(byteBufferList => {
     try {
-      return spdzGuiLib.sharesFromTriples(byteBufferList)
+      return spdzGuiLib.binaryToShare(byteBufferList)
     } catch (err) {
       return new Bacon.Error(err.message)
     }
   })
 
   //Validation on outputs stream and convert to int array from byte array
+  // dataList is array of objects (regType, data)
   // Uses regType MODP (16) or INT (4) to determine parsing.
-  const extractedOutputStream = combinedOutputsStream.map(byteBufferList => {
+  const extractedOutputStream = combinedOutputsStream.flatMap(dataList => {
     try {
-      const gfpval = spdzGuiLib.fromSpdzBinary(byteBufferList[0], true)
-      return gfpval.fromMontgomery()
-      // return spdzGuiLib.binaryToIntArray(byteBufferList)
+      const regType = dataList.reduce((result, output) => result = output.regType, REG_TYPE.NONE)
+      const byteBufferList = dataList.map(output => output.data)
+
+      if (regType === REG_TYPE.MODP) {
+        const gfpResultList = spdzGuiLib.binaryToGfpArray(byteBufferList, true)
+
+        return gfpResultList.map(gfp => gfp.toJSNumber())
+      } else if (regType === REG_TYPE.INT) {
+        return spdzGuiLib.binaryToIntArray(byteBufferList)
+      } else {
+        throw new Error(`Got output stream with regType ${regType} not currently handled.`)
+      }
     } catch (err) {
       return new Bacon.Error(err.message)
     }
   })
   
-
   return [combinedConnectionStream, combinedResponsesStream, extractedSharesStream, extractedOutputStream]
 }
 
@@ -173,7 +183,6 @@ const connectSetup = (connectOptions, url, encryptionKey) => {
         value.reuseConnection
       )
     } else if (value.eventType === 'sendData') {
-      logger.debug('About to sendData event with value ', value.data)
       socket.emit(
         value.eventType,
         value.data

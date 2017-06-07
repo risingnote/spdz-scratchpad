@@ -36,8 +36,8 @@ combinedConnectionStream.onValue(value => {
   })
 })
 
-combinedResponsesStream.onValue(value => {
-  logger.info('SPDZ response message.', value)
+combinedResponsesStream.onValue(responseList => {
+  logger.info('SPDZ response message.', responseList)
 })
 
 combinedSharesStream.onValue(shareGfpList => {
@@ -45,15 +45,15 @@ combinedSharesStream.onValue(shareGfpList => {
 })
 
 combinedSharesStream.onError(err => {
-  logger.info('SPDZ shares error.', err)
+  logger.warn('SPDZ shares error.', err)
 })
 
-combinedOutputsStream.onValue(value => {
-  logger.info('SPDZ outputs message.', value.toString())
+combinedOutputsStream.onValue(valueList => {
+  logger.info('SPDZ outputs message.', valueList)
 })
 
 combinedOutputsStream.onError(err => {
-  logger.info('SPDZ outputs error.', err)
+  logger.warn('SPDZ outputs error.', err)
 })
 
 //Simulate user input and combine with shares to send
@@ -66,7 +66,7 @@ const sendValueStream = userInputStream.zip(combinedSharesStream, (inputList, sh
   return inputList.map((input, i) => {
     const sharedInput = shareList[i].add(spdzGuiLib.Gfp.fromString(input).toMontgomery())
     //TODO Doesn't need to be base64 encoded
-    return spdzGuiLib.base64Encode(sharedInput)
+    return spdzGuiLib.base64Encode(sharedInput.toHexString())
   })
 })
 

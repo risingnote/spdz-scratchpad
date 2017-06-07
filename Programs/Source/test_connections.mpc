@@ -23,13 +23,16 @@ def main():
 
         print_ln('Received input %s', input_list[0].reveal())
 
-        results = Array(1, cint)
-        results[0] = (input_list[0] * 2).reveal()
-        # result = sint(23).reveal() # (input_list[0] * 2).reveal() # gives a cint (ie 32 bit modp)
+        # results = Array(1, cint)
+        # results[0] = (input_list[0] * 2).reveal()
+
+        results = Array(1, regint)
+        results[0] = sint(23).reveal() # implicit type conversion cint -> regint
 
         print_ln('About to send result %s', results[0])
-        cint.write_to_socket(client_socket_id, results, ClientMessageType.OutputResult, True)
-        #result.write_to_socket(client_socket_id, ClientMessageType.OutputResult, True)
+
+        # cint.write_to_socket(client_socket_id, results, ClientMessageType.OutputResult, True)
+        regint.write_to_socket(client_socket_id, results, ClientMessageType.OutputResult, True)
 
         return 1
 
