@@ -8,9 +8,7 @@ spdzGuiLib.setDHKeyPair(devPublicKey,
                         '542718d18434eda89242e06fbc3e644a3969fe64fcd4e3379346b06f0e30bbae')
 
 const [
-  combinedConnectionStream,
   combinedResponsesStream,
-  combinedSharesStream,
   combinedOutputsStream
 ] = webSocketClient.connectToSPDZProxy(
   {
@@ -23,33 +21,20 @@ const [
 /**
  * Subscribe to streams
  */
-// Value is map with status (0 - good, 1 - connect error, 2 - timeout) and msg
-combinedConnectionStream.onValue(value => {
-  logger.info('Web socket connection response.', value)
-  webSocketClient.connectToSpdz(devPublicKey, false)
-})
+combinedResponsesStream.onValue(value => {
+  logger.info('Got response message: ', value)
 
-combinedResponsesStream.onValue(responseList => {
-  logger.info('SPDZ response message.', responseList)
-})
-
-combinedSharesStream.onValue(shareGfpList => {
-  logger.info(`Got ${shareGfpList.length} SPDZ shares.`)
-})
-
-combinedSharesStream.onError(err => {
-  logger.warn('SPDZ shares error.', err)
+  // How to manage reconnects ??
+  if (value.responseType === webSocketClient.responseType.PROXY_CONNECT && value.success) {
+    webSocketClient.connectToSpdz(devPublicKey, true)
+  }
+  
 })
 
 combinedOutputsStream.onValue(valueList => {
   logger.info('SPDZ outputs message.', valueList)
 })
 
-combinedOutputsStream.onError(err => {
-  logger.warn('SPDZ outputs error.', err)
-})
-
 //Simulate user input 
-setTimeout( () => webSocketClient.sendInput([446]), 2000)
-
+setTimeout( () => webSocketClient.sendInput([446, 573]), 2000)
 
