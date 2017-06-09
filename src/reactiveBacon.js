@@ -1,25 +1,41 @@
 /** Scratchpad for Bacon. */
 const Bacon = require('baconjs').Bacon
 
-const stream1 = Bacon.interval(1000, 1)
-const stream2 = Bacon.interval(1000, 2)
+
+const stream1 = Bacon.interval(1000, 2)
+
+const propStatus = stream1.map(value => value > 1).toProperty()
+
+const myFunc = () => {
+  propStatus.onValue(v => {
+    if (v) {
+      console.log('do sthg')
+    } else {
+      throw new Error('cant do sthg')
+    }
+  })
+}
+
+setTimeout(() => myFunc(), 2000)
+
+
 
 // const sendValueStream = stream1.zip(stream2).flatMap(inp => {
 //   return new Bacon.Error('inp error', inp)
 // })
 
-const sendValueStream = stream1.zip(stream2, (x,y) => {
-  return new Bacon.Error(`inp error ${[x,y]}`)
-})
+// const sendValueStream = stream1.zip(stream2, (x,y) => {
+//   return new Bacon.Error(`inp error ${[x,y]}`)
+// })
 
 
-sendValueStream.onValue(inputList => {
-  console.log(`About to send ${inputList}.`)
-})
+// sendValueStream.onValue(inputList => {
+//   console.log(`About to send ${inputList}.`)
+// })
 
-sendValueStream.onError(err => {
-  console.log(`Error ${err}.`)
-})
+// sendValueStream.onError(err => {
+//   console.log(`Error ${err}.`)
+// })
 
 
 // const stream1 = Bacon.fromArray([true])

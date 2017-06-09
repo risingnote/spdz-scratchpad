@@ -1,6 +1,7 @@
 const logger = require('./logging')
-const webSocketClient = require('./webSocketClient')
 const spdzGuiLib = require('spdz-gui-lib')
+
+const socketApi = spdzGuiLib.socketApi
 
 // Store client keys for testing
 const devPublicKey = '976bff74308a0ab25c3ed90a93b72c0371c01bfcff0d030d02235628318d7e41'
@@ -10,7 +11,7 @@ spdzGuiLib.setDHKeyPair(devPublicKey,
 const [
   combinedResponsesStream,
   combinedOutputsStream
-] = webSocketClient.connectToSPDZProxy(
+] = socketApi.connectToSPDZProxy(
   {
     path: '/spdzapi/socket.io'
   },
@@ -25,8 +26,8 @@ combinedResponsesStream.onValue(value => {
   logger.info('Got response message: ', value)
 
   // How to manage reconnects ??
-  if (value.responseType === webSocketClient.responseType.PROXY_CONNECT && value.success) {
-    webSocketClient.connectToSpdz(devPublicKey, true)
+  if (value.responseType === socketApi.responseType.PROXY_CONNECT && value.success) {
+    socketApi.connectToSpdz(devPublicKey, true)
   }
   
 })
@@ -36,5 +37,5 @@ combinedOutputsStream.onValue(valueList => {
 })
 
 //Simulate user input 
-setTimeout( () => webSocketClient.sendInput([446, 573]), 2000)
+setTimeout( () => socketApi.sendInput([573]), 2000)
 
