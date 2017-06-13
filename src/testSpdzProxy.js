@@ -27,7 +27,7 @@ combinedResponsesStream.onValue(value => {
 
   // How to manage reconnects ??
   if (value.responseType === socketApi.responseType.PROXY_CONNECT && value.success) {
-    socketApi.connectToSpdz(devPublicKey, true)
+    socketApi.connectToSpdz(devPublicKey, false)
   }
   
 })
