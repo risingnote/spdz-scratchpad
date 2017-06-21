@@ -30,7 +30,7 @@
     "rxjs": "^5.4.0",
     "socket.io": "^2.0.1",
     "socket.io-client": "^2.0.1",
-    "spdz-gui-lib": "git+ssh://git@github.com/bristolcrypto/spdz-gui-lib.git#v0.2.0",
+    "spdz-gui-lib": "file:///Users/je0018/Development/spdz-gui-lib",
     "winston": "^2.3.1"
   },
   "devDependencies": {

@@ -37,5 +37,5 @@ combinedOutputsStream.onValue(valueList => {
 })
 
 //Simulate user input 
-setTimeout( () => socketApi.sendInput([573]), 2000)
+setTimeout( () => socketApi.sendInput([1481<<10,3<<10]), 2000)
 
