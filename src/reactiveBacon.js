@@ -1,22 +1,16 @@
 /** Scratchpad for Bacon. */
 const Bacon = require('baconjs').Bacon
 
+const stream1 = Bacon.sequentially(1000, [1,2])
+const stream2 = Bacon.sequentially(3000, [3])
+const stream3 = Bacon.sequentially(4000, [4])
 
-const stream1 = Bacon.interval(1000, 2)
 
-const propStatus = stream1.map(value => value > 1).toProperty()
+const stream4 = Bacon.mergeAll(stream1, stream2, stream3).flatMap(v => {
+  return v + 10
+})
 
-const myFunc = () => {
-  propStatus.onValue(v => {
-    if (v) {
-      console.log('do sthg')
-    } else {
-      throw new Error('cant do sthg')
-    }
-  })
-}
-
-setTimeout(() => myFunc(), 2000)
+stream4.onValue(v => console.log('stream 3 ', v))
 
 
 

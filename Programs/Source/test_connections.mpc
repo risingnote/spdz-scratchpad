@@ -2,7 +2,7 @@
 Test receiving and sending external client inputs with updated SPDZ instructions / SPDZ Proxy.
 """
 
-from Compiler.types import sint, regint, cfix, ClientMessageType
+from Compiler.types import sint, sfix, regint, cfix, ClientMessageType
 from Compiler.instructions import listen, acceptclientconnection
 from Compiler.library import do_while, print_ln, Array
 
@@ -23,7 +23,7 @@ def main():
     regint.read_client_public_key(client_socket_id)
 
     input_list = sfix.receive_from_client(2, client_socket_id, ClientMessageType.TripleShares)
-
+    
     print_ln('Received input type %s value %s (%s)', type(input_list[0]), input_list[0].reveal(), input_list[0].v.reveal())
 
     results = Array(1, cfix)
